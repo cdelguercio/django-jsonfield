@@ -1,4 +1,6 @@
 from decimal import Decimal
+import django
+from django import forms
 from django.core.serializers import deserialize, serialize
 from django.core.serializers.base import DeserializationError
 from django.db import models
@@ -184,7 +186,11 @@ class JSONFieldTest(TestCase):
             '"fields": {"json": "{]", "default_json": "{]"}}]'
         with self.assertRaises(DeserializationError) as cm:
             next(deserialize('json', ser))
-        inner = cm.exception.args[0]
+        # Django 2.0+ uses PEP 3134 exception chaining
+        if django.VERSION < (2, 0,):
+            inner = cm.exception.args[0]
+        else:
+            inner = cm.exception.__context__
         self.assertTrue(isinstance(inner, ValidationError))
         self.assertEqual('Enter valid JSON', inner.messages[0])
 
@@ -283,3 +289,23 @@ class OrderedDictSerializationTest(TestCase):
         self.assertEqual(list(mod.json.keys()), self.expected_key_order)
         mod_from_db = OrderedJsonModel.objects.get(id=mod.id)
         self.assertEqual(list(mod_from_db.json.keys()), self.expected_key_order)
+
+
+class JsonNotRequiredModel(models.Model):
+    json = JSONField(blank=True, null=True)
+
+
+class JsonNotRequiredForm(forms.ModelForm):
+    class Meta:
+        model = JsonNotRequiredModel
+        fields = '__all__'
+
+
+class JsonModelFormTest(TestCase):
+    def test_blank_form(self):
+        form = JsonNotRequiredForm(data={'json': ''})
+        self.assertFalse(form.has_changed())
+
+    def test_form_with_data(self):
+        form = JsonNotRequiredForm(data={'json': '{}'})
+        self.assertTrue(form.has_changed())
