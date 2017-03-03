@@ -168,8 +168,19 @@ class JSONCharField(JSONFieldBase, models.CharField):
     form_class = JSONCharFormField
 
 
+class JSONBinaryField(JSONFieldBase, models.BinaryField):
+    """JSONBinaryField is a generic textfield that serializes/deserializes JSON objects,
+    stored in the database like a BinaryField, which, in some databases, may allow for
+    larger maximum field sizes."""
+
+    def get_db_prep_value(self, value, connection, prepared=False):
+        """Convert JSON object to a string"""
+        if self.null and value is None:
+            return bytearray()
+        return bytearray(json.dumps(value, **self.dump_kwargs), 'utf8')
+
 try:
     from south.modelsinspector import add_introspection_rules
-    add_introspection_rules([], ["^jsonfield\.fields\.(JSONField|JSONCharField)"])
+    add_introspection_rules([], ["^jsonfield\.fields\.(JSONField|JSONCharField|JSONBinaryField)"])
 except ImportError:
     pass
